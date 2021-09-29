@@ -240,7 +240,7 @@ impl Game {
         front
     }
 
-    fn move_pos(&mut self, dx: i32, dy: i32) {
+    fn move_pos(&mut self, dx: i32, dy: i32) -> bool {
         self.snake_body.push_back(self.snake_front);
 
         let mut next_front = self.snake_front;
@@ -249,7 +249,7 @@ impl Game {
 
         if !self.cell_is_free(next_front) {
             eprintln!("Snake collision!");
-            std::process::exit(1);
+            return false;
         }
 
 
@@ -271,17 +271,23 @@ impl Game {
         while self.snake_body.len() > self.current_length {
             self.snake_body.pop_front();
         }
+
+        true
     }
 
-    pub fn check_step(&mut self, dt: f64) {
+    pub fn check_step(&mut self, dt: f64) -> bool {
         let time_step = 0.3;
 
         self.next_time += dt;
         while self.next_time >= time_step {
             self.next_time -= time_step;
 
-            self.make_step();
+            if !self.make_step() {
+                return false;
+            }
         }
+
+        true
     }
 
     fn cell_is_free(&self, p: Point2d) -> bool {
@@ -311,7 +317,7 @@ impl Game {
         true
     }
 
-    fn make_step(&mut self) {
+    fn make_step(&mut self) -> bool{
         for door in &mut self.doors {
             door.tick();
         }
@@ -326,7 +332,7 @@ impl Game {
             }
             None => ()
         }
-        self.move_pos(self.dir_x, self.dir_y);
+        self.move_pos(self.dir_x, self.dir_y)
     }
 
     fn insert_teleporter_2way(&mut self, p1: Point2d, p2: Point2d) {

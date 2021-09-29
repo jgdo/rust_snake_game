@@ -10,7 +10,7 @@ pub struct MainGame {
 
 impl MainGame {
     pub fn new(rect_size: f64,
-           field_size: f64) -> MainGame {
+               field_size: f64) -> MainGame {
         MainGame {
             rect_size,
             field_size,
@@ -23,6 +23,14 @@ impl MainGame {
             match button {
                 Button::Keyboard(key) => self.game.handle_key(key),
                 _ => (),
+            }
+        }
+
+        if let Some(res) = e.update(|arg| {
+            self.game.check_step(arg.dt)
+        }) {
+            if !res {
+                return false;
             }
         }
 
@@ -79,9 +87,6 @@ impl MainGame {
             glyphs.factory.encoder.flush(device);
         });
 
-        e.update(|arg| {
-            self.game.check_step(arg.dt);
-        });
 
         return true;
     }
