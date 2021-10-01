@@ -1,12 +1,15 @@
 use piston_window::*;
 use crate::engine;
 
+use engine::GameEvent;
+
 
 pub struct MainGame {
     rect_size: f64,
     field_size: f64,
     game: engine::Game,
 }
+
 
 impl MainGame {
     pub fn new(rect_size: f64,
@@ -18,7 +21,13 @@ impl MainGame {
         }
     }
 
-    pub fn run(&mut self, window: &mut PistonWindow, glyphs: &mut Glyphs, e: Event) -> bool {
+    pub fn current_score(&self) -> u32 {
+        self.game.current_length() as u32
+    }
+
+    pub fn run(&mut self, window: &mut PistonWindow, glyphs: &mut Glyphs, e: Event) -> GameEvent {
+        let mut game_event = GameEvent::None;
+
         if let Some(button) = e.press_args() {
             match button {
                 Button::Keyboard(key) => self.game.handle_key(key),
@@ -29,9 +38,11 @@ impl MainGame {
         if let Some(res) = e.update(|arg| {
             self.game.check_step(arg.dt)
         }) {
-            if !res {
-                return false;
+            if let GameEvent::Collision = res {
+                return GameEvent::Collision;
             }
+
+            game_event = res;
         }
 
         window.draw_2d(&e, |c, g, device| {
@@ -48,16 +59,16 @@ impl MainGame {
 
 
             for p in self.game.snake_body.iter() {
-                rectangle([1.0, 0.0, 1.0, 1.0], // red
+                rectangle([1.0, 0.2, 0.2, 1.0], // red
                           [p.x as f64 * self.rect_size, p.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
                           c.transform, g);
             }
 
-            rectangle([1.0, 0.0, 0.0, 1.0], // red
+            rectangle([0.8, 0.0, 0.0, 1.0], // red
                       [self.game.snake_front.x as f64 * self.rect_size, self.game.snake_front.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
                       c.transform, g);
 
-            rectangle([0.0, 1.0, 0.0, 1.0], // red
+            rectangle([0.1, 0.8, 0.1, 1.0], // green
                       [self.game.food_location.x as f64 * self.rect_size, self.game.food_location.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
                       c.transform, g);
 
@@ -80,7 +91,7 @@ impl MainGame {
                           c.transform, g);
             }
 
-            text([0.0, 0.0, 0.0, 1.0], 16, &self.game.snake_body.len().to_string(), glyphs,
+            text([0.0, 0.0, 0.0, 1.0], 16, &self.game.current_length().to_string(), glyphs,
                  c.transform.trans(2.0, self.rect_size * self.field_size - 2.0), g).unwrap();
 
             // Update glyphs before rendering.
@@ -88,6 +99,6 @@ impl MainGame {
         });
 
 
-        return true;
+        return game_event;
     }
 }

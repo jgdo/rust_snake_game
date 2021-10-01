@@ -38,7 +38,7 @@ impl DirBuffer {
         }
     }
 
-    pub fn enqueue_dir(&mut self, dir: Point2d) {
+    pub fn enqueue_dir(&mut self, dir: Point2d){
         if !self.data.contains(&dir) {
             self.data.push_back(dir);
         }
@@ -92,6 +92,12 @@ impl Door {
             self.open = !self.open;
         }
     }
+}
+
+pub enum GameEvent {
+    None,
+    Turn,
+    Collision,
 }
 
 /*
@@ -240,6 +246,10 @@ impl Game {
         front
     }
 
+    pub fn current_length(&self) -> usize {
+        self.current_length
+    }
+
     fn move_pos(&mut self, dx: i32, dy: i32) -> bool {
         self.snake_body.push_back(self.snake_front);
 
@@ -275,19 +285,17 @@ impl Game {
         true
     }
 
-    pub fn check_step(&mut self, dt: f64) -> bool {
+    pub fn check_step(&mut self, dt: f64) -> GameEvent {
         let time_step = 0.3;
 
         self.next_time += dt;
         while self.next_time >= time_step {
             self.next_time -= time_step;
 
-            if !self.make_step() {
-                return false;
-            }
+            return self.make_step();
         }
 
-        true
+        GameEvent::None
     }
 
     fn cell_is_free(&self, p: Point2d) -> bool {
@@ -317,10 +325,12 @@ impl Game {
         true
     }
 
-    fn make_step(&mut self) -> bool{
+    fn make_step(&mut self) -> GameEvent{
         for door in &mut self.doors {
             door.tick();
         }
+
+        let mut event = GameEvent::None;
 
         match self.dir_buffer.next_dir() {
             Some(dir) => {
@@ -328,11 +338,17 @@ impl Game {
                 if self.dir_x != dir.x && self.dir_y != dir.y {
                     self.dir_x = dir.x;
                     self.dir_y = dir.y;
+                    event = GameEvent::Turn;
                 }
             }
             None => ()
         }
-        self.move_pos(self.dir_x, self.dir_y)
+
+        if self.move_pos(self.dir_x, self.dir_y) {
+            event
+        } else {
+            GameEvent::Collision
+        }
     }
 
     fn insert_teleporter_2way(&mut self, p1: Point2d, p2: Point2d) {

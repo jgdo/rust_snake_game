@@ -10,10 +10,16 @@ use piston_window::math::Scalar;
 use winit::window::Icon;
 use winit::platform::windows::IconExtWindows;
 
+use std::fs::File;
+use std::io::BufReader;
+use rodio::{Decoder, OutputStream, source::Source};
+use crate::engine::GameEvent;
+
+
 enum ActiveScreen {
     MainGame(game::MainGame),
     InitScreen,
-    LooseScreen,
+    LooseScreen(u32),
 }
 
 fn text_size<C>(
@@ -112,6 +118,19 @@ fn main() {
     println!("icon: {:?}", icon);
     window.window. ctx.window().set_window_icon(icon.ok());
 
+
+    // Get a output stream handle to the default physical sound device
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    // Load a sound from a file, using a path relative to Cargo.toml
+    let file = BufReader::new(File::open(assets.join("sound").join("turn.wav")).unwrap());
+    // Decode that sound file into a source
+    let source = Decoder::new(file).unwrap();
+
+    let sample = source.convert_samples().buffered();
+
+    // Play the sound directly on the device
+    // stream_handle.play_raw(sample.clone()).unwrap_or_default();
+
     while let Some(e) = window.next() {
         match &mut active {
             MainGame(ref mut game) => {
@@ -125,9 +144,14 @@ fn main() {
                     }
                 }
 
-                if !game.run(&mut window, &mut glyphs, e) {
-                    active = LooseScreen;
+                let game_result = game.run(&mut window, &mut glyphs, e);
+                match game_result {
+                    GameEvent::None => {}
+                    GameEvent::Turn => {stream_handle.play_raw(sample.clone()).unwrap_or_default();}
+                    GameEvent::Collision => {active = LooseScreen(game.current_score());}
                 }
+
+
             }
             InitScreen => {
                 if let Some(button) = e.press_args() {
@@ -158,7 +182,9 @@ fn main() {
                     glyphs.factory.encoder.flush(device);
                 });
             }
-            LooseScreen => {
+            LooseScreen(score) => {
+                let score = *score;
+
                 if let Some(button) = e.press_args() {
                     match button {
                         Button::Keyboard(Key::Return) => {
@@ -175,7 +201,7 @@ fn main() {
                     clear([0.95, 0.95, 0.95, 1.0], g);
 
 
-                    draw_text_multiline([0.8, 0.0, 0.0, 1.0], 48, "You lost!\n \nPress enter\nto return to\nmain screen.",
+                    draw_text_multiline([0.8, 0.0, 0.0, 1.0], 48, &format!("You lost!\n \nScore: {}\n \n \nPress enter\nto return to\nmain screen.", score),
                                         Size::from([rect_size * field_size, rect_size * field_size]),
                                         &mut glyphs, c.transform, g,
                     ).unwrap();
