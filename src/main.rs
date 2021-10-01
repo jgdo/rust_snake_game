@@ -7,6 +7,8 @@ extern crate find_folder;
 use piston_window::*;
 use crate::ActiveScreen::{MainGame, InitScreen, LooseScreen};
 use piston_window::math::Scalar;
+use winit::window::Icon;
+use winit::platform::windows::IconExtWindows;
 
 enum ActiveScreen {
     MainGame(game::MainGame),
@@ -18,7 +20,7 @@ fn text_size<C>(
     font_size: types::FontSize,
     text: &str,
     cache: &mut C,
-) -> Result<(Scalar, Scalar), C::Error>
+) -> Result<Size, C::Error>
     where
         C: character::CharacterCache,
 {
@@ -30,16 +32,16 @@ fn text_size<C>(
         let character = cache.character(font_size, ch)?;
 
         width += character.advance_width();
-        height = height.max( character.atlas_size[1] *2.0 - character.top());
+        height = height.max(character.atlas_size[1] * 2.0 - character.top());
     }
 
-    Ok((width, height))
+    Ok(Size::from([width, height]))
 }
 
 fn draw_text_lines<C, G>(color: types::Color,
                          font_size: types::FontSize,
                          lines: &[&str],
-                         area_size: (f64, f64),
+                         area_size: Size,
                          cache: &mut C,
                          transform: math::Matrix2d,
                          g: &mut G,
@@ -50,26 +52,26 @@ fn draw_text_lines<C, G>(color: types::Color,
 {
     let line_spacing_add = font_size as f64 * 0.25;
 
-    let mut sizes: Vec<(Scalar, Scalar)> = Vec::new();
-    let mut total_height = (lines.len()-1) as f64 * line_spacing_add;
+    let mut sizes: Vec<Size> = Vec::new();
+    let mut total_height = (lines.len() - 1) as f64 * line_spacing_add;
 
     for &line in lines {
         let s = text_size(font_size, line, cache)?;
         sizes.push(s);
-        total_height += s.1;
+        total_height += s.height;
     }
 
-    let mut y_pos = (area_size.1 - total_height) / 2.0 + sizes[0].1;
+    let mut y_pos = (area_size.height - total_height) / 2.0 + sizes[0].height;
 
     for (index, line) in lines.iter().enumerate() {
         let s = sizes[index];
 
-        let x_pos = (area_size.0 - s.0) / 2.0;
+        let x_pos = (area_size.width - s.width) / 2.0;
 
         text(color, font_size, line, cache,
              transform.trans(x_pos, y_pos), g)?;
 
-        y_pos += s.1 + line_spacing_add;
+        y_pos += s.height + line_spacing_add;
     }
 
     Ok(())
@@ -78,7 +80,7 @@ fn draw_text_lines<C, G>(color: types::Color,
 fn draw_text_multiline<C, G>(color: types::Color,
                              font_size: types::FontSize,
                              text: &str,
-                             area_size: (f64, f64),
+                             area_size: Size,
                              cache: &mut C,
                              transform: math::Matrix2d,
                              g: &mut G,
@@ -103,7 +105,12 @@ fn main() {
     println!("Found assets: {:?}", assets);
     let mut glyphs = window.load_font(assets.join("FiraSans-Regular.ttf")).unwrap();
 
+
     let mut active = InitScreen;
+
+    let icon = Icon::from_path(assets.join("icon.ico"), None);
+    println!("icon: {:?}", icon);
+    window.window. ctx.window().set_window_icon(icon.ok());
 
     while let Some(e) = window.next() {
         match &mut active {
@@ -138,11 +145,11 @@ fn main() {
                 window.draw_2d(&e, |c, g, device| {
                     clear([0.95, 0.95, 0.95, 1.0], g);
 
-                    draw_text_multiline([0.0, 0.0, 0.0, 1.0], 64, "Snake Game", (rect_size * field_size, 100.0),
+                    draw_text_multiline([0.0, 0.0, 0.0, 1.0], 64, "Snake Game", Size::from([rect_size * field_size, 100.0]),
                                         &mut glyphs, c.transform, g,
                     ).unwrap();
 
-                    draw_text_multiline([0.0, 0.8, 0.0, 1.0], 48, "Press enter\nto start!", (rect_size * field_size, rect_size * field_size-100.0),
+                    draw_text_multiline([0.0, 0.8, 0.0, 1.0], 48, "Press enter\nto start!", Size::from([rect_size * field_size, rect_size * field_size - 100.0]),
                                         &mut glyphs, c.transform.trans(0.0, 100.0), g,
                     ).unwrap();
 
@@ -168,7 +175,8 @@ fn main() {
                     clear([0.95, 0.95, 0.95, 1.0], g);
 
 
-                    draw_text_multiline([0.8, 0.0, 0.0, 1.0], 48, "You lost!\n \nPress enter\nto return to\nmain screen.", (rect_size * field_size, rect_size * field_size),
+                    draw_text_multiline([0.8, 0.0, 0.0, 1.0], 48, "You lost!\n \nPress enter\nto return to\nmain screen.",
+                                        Size::from([rect_size * field_size, rect_size * field_size]),
                                         &mut glyphs, c.transform, g,
                     ).unwrap();
 
