@@ -9,26 +9,32 @@ use array2d::Array2D;
 
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Point2d {
-    pub x: i32,
-    pub y: i32,
+pub struct Point2<T> {
+    pub x: T,
+    pub y: T,
 }
 
-impl Point2d {
-    pub fn new(x: i32, y: i32) -> Point2d {
-        Point2d {
+type Point2i = Point2<i32>;
+type Point2f = Point2<f32>;
+
+impl<T> Point2<T> {
+    pub fn new(x: T, y: T) -> Self {
+        Self {
             x,
             y,
         }
     }
+}
 
+impl Point2<i32> {
     pub fn as_coords(&self) -> (usize, usize) {
         (self.y as usize, self.x as usize)
     }
 }
 
+
 struct DirBuffer {
-    data: VecDeque<Point2d>,
+    data: VecDeque<Point2i>,
 }
 
 impl DirBuffer {
@@ -38,13 +44,13 @@ impl DirBuffer {
         }
     }
 
-    pub fn enqueue_dir(&mut self, dir: Point2d){
+    pub fn enqueue_dir(&mut self, dir: Point2i) {
         if !self.data.contains(&dir) {
             self.data.push_back(dir);
         }
     }
 
-    pub fn next_dir(&mut self) -> Option<Point2d> {
+    pub fn next_dir(&mut self) -> Option<Point2i> {
         self.data.pop_front()
     }
 }
@@ -52,12 +58,12 @@ impl DirBuffer {
 
 #[derive(Hash, Eq, PartialEq)]
 pub struct Teleporter {
-    pub start: Point2d,
-    pub end: Point2d,
+    pub start: Point2i,
+    pub end: Point2i,
 }
 
 impl Teleporter {
-    pub fn new(start: Point2d, end: Point2d) -> Teleporter {
+    pub fn new(start: Point2i, end: Point2i) -> Teleporter {
         Teleporter {
             start,
             end,
@@ -66,16 +72,15 @@ impl Teleporter {
 }
 
 
-
 pub struct Door {
-    pub cells: HashSet<Point2d>,
+    pub cells: HashSet<Point2i>,
     period: usize,
     pub open: bool,
     current_count: usize,
 }
 
 impl Door {
-    pub fn new(cells: HashSet<Point2d>, period: usize) -> Door {
+    pub fn new(cells: HashSet<Point2i>, period: usize) -> Door {
         Door {
             cells,
             period,
@@ -173,13 +178,13 @@ impl<'a> GameField<'a> {
 pub struct Game {
     width: i32,
     height: i32,
-    pub snake_body: VecDeque<Point2d>,
-    pub snake_front: Point2d,
+    pub snake_body: VecDeque<(Point2i, Point2i)>,
+    snake_front: Point2i,
     current_length: usize,
-    pub food_location: Point2d,
-    next_time: f64,
+    pub food_location: Point2i,
     dir_x: i32,
     dir_y: i32,
+    snake_progress: f32,
     rng: rand::rngs::ThreadRng,
     dir_buffer: DirBuffer,
     pub game_field: Array2D<u32>,
@@ -193,12 +198,12 @@ impl Game {
             width: width as i32,
             height: height as i32,
             snake_body: VecDeque::new(),
-            snake_front: Point2d::new(width / 4, height / 2),
+            snake_front: Point2::new(width / 4, height / 2),
             current_length: 5,
-            food_location: Point2d::new(1, 1),
-            next_time: 0.0,
+            food_location: Point2i::new(1, 1),
             dir_x: 0,
             dir_y: 1,
+            snake_progress: 0.0,
             rng: rand::thread_rng(),
             dir_buffer: DirBuffer::new(),
             game_field: Array2D::filled_with(0, height as usize, width as usize),
@@ -211,10 +216,10 @@ impl Game {
             }
         }
 
-        game.insert_teleporter_2way(Point2d::new(game.width - 1, game.height - 1), Point2d::new(0, 0));
+        game.insert_teleporter_2way(Point2i::new(game.width - 1, game.height - 1), Point2i::new(0, 0));
 
         game.doors.push(Door::new(
-            Iterator::collect(IntoIterator::into_iter([Point2d::new(game.width / 2, 5), Point2d::new(game.width / 2, 6), Point2d::new(game.width / 2, 7)])),
+            Iterator::collect(IntoIterator::into_iter([Point2i::new(game.width / 2, 5), Point2i::new(game.width / 2, 6), Point2i::new(game.width / 2, 7)])),
             5));
 
         game
@@ -231,11 +236,37 @@ impl Game {
         }
     }
 
-    fn change_dir(&mut self, dir_x: i32, dir_y: i32) {
-        self.dir_buffer.enqueue_dir(Point2d::new(dir_x, dir_y));
+    pub fn get_interpolated_snake_head(&self) -> Point2f {
+        let dir_x = self.dir_x as f32;
+        let dir_y = self.dir_y as f32;
+        // self.snake_front represents the next position on grid
+        // when progress will hit 100%
+        // until then we need to interpolate between last position
+        // and snake_front
+        let progress = self.snake_progress-1.0;
+
+        Point2f::new(self.snake_front.x as f32 + dir_x * progress,
+                     self.snake_front.y as f32 + dir_y * progress,
+        )
     }
 
-    fn teleport_if_needed(&self, front: Point2d) -> Point2d {
+    pub fn get_interpolated_snake_tail(&self) -> Option<Point2f> {
+        self.snake_body.front().map(|tail| {
+            let dir_x = tail.1.x as f32;
+            let dir_y = tail.1.y as f32;
+            let progress = self.snake_progress;
+
+            Point2f::new(tail.0.x as f32 + dir_x * progress,
+                         tail.0.y as f32 + dir_y * progress,
+            )
+        })
+    }
+
+    fn change_dir(&mut self, dir_x: i32, dir_y: i32) {
+        self.dir_buffer.enqueue_dir(Point2i::new(dir_x, dir_y));
+    }
+
+    fn teleport_if_needed(&self, front: Point2i) -> Point2i {
         for t in &self.teleporters {
             if front == t.start
             {
@@ -250,8 +281,8 @@ impl Game {
         self.current_length
     }
 
-    fn move_pos(&mut self, dx: i32, dy: i32) -> bool {
-        self.snake_body.push_back(self.snake_front);
+    fn do_snake_step(&mut self, dx: i32, dy: i32) -> bool {
+        self.snake_body.push_back((self.snake_front, Point2i::new(self.dir_x, self.dir_y)));
 
         let mut next_front = self.snake_front;
         next_front.x = std::cmp::min(std::cmp::max(0, next_front.x + dx), self.width - 1);
@@ -261,7 +292,6 @@ impl Game {
             eprintln!("Snake collision!");
             return false;
         }
-
 
         self.snake_front = self.teleport_if_needed(next_front);
 
@@ -285,23 +315,10 @@ impl Game {
         true
     }
 
-    pub fn check_step(&mut self, dt: f64) -> GameEvent {
-        let time_step = 0.3;
-
-        self.next_time += dt;
-        while self.next_time >= time_step {
-            self.next_time -= time_step;
-
-            return self.make_step();
-        }
-
-        GameEvent::None
-    }
-
-    fn cell_is_free(&self, p: Point2d) -> bool {
+    fn cell_is_free(&self, p: Point2i) -> bool {
         if p == self.snake_front { return false; }
         for sp in self.snake_body.iter() {
-            if p == *sp {
+            if p == (*sp).0 {
                 return false;
             }
         }
@@ -325,12 +342,19 @@ impl Game {
         true
     }
 
-    fn make_step(&mut self) -> GameEvent{
+    pub fn make_step(&mut self, dt: f64) -> GameEvent {
+        let mut event = GameEvent::None;
+
+        self.snake_progress += dt as f32 / 0.3;
+        if self.snake_progress < 1.0 {
+            return GameEvent::None; // still in microstepping
+        }
+
+        self.snake_progress -= 1.0;
+
         for door in &mut self.doors {
             door.tick();
         }
-
-        let mut event = GameEvent::None;
 
         match self.dir_buffer.next_dir() {
             Some(dir) => {
@@ -344,14 +368,15 @@ impl Game {
             None => ()
         }
 
-        if self.move_pos(self.dir_x, self.dir_y) {
+
+        if self.do_snake_step(self.dir_x, self.dir_y) {
             event
         } else {
             GameEvent::Collision
         }
     }
 
-    fn insert_teleporter_2way(&mut self, p1: Point2d, p2: Point2d) {
+    fn insert_teleporter_2way(&mut self, p1: Point2i, p2: Point2i) {
         self.teleporters.insert(Teleporter::new(p1, p2));
         self.teleporters.insert(Teleporter::new(p2, p1));
     }

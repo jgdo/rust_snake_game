@@ -36,7 +36,7 @@ impl MainGame {
         }
 
         if let Some(res) = e.update(|arg| {
-            self.game.check_step(arg.dt)
+            self.game.make_step(arg.dt)
         }) {
             if let GameEvent::Collision = res {
                 return GameEvent::Collision;
@@ -56,16 +56,33 @@ impl MainGame {
                               c.transform, g);
                 }
             }
+            let snake_slices = self.game.snake_body.as_slices();
 
-
-            for p in self.game.snake_body.iter() {
-                rectangle([1.0, 0.2, 0.2, 1.0], // red
-                          [p.x as f64 * self.rect_size, p.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
-                          c.transform, g);
+            if snake_slices.0.len() > 0 {
+                for p in snake_slices.0[1..].iter() {
+                    rectangle([1.0, 0.2, 0.2, 1.0], // red
+                              [p.0.x as f64 * self.rect_size, p.0.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
+                              c.transform, g);
+                }
+                for p in snake_slices.1.iter() {
+                    rectangle([1.0, 0.2, 0.2, 1.0], // red
+                              [p.0.x as f64 * self.rect_size, p.0.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
+                              c.transform, g);
+                }
             }
 
+            self.game.get_interpolated_snake_tail().map(|snake_tail| {
+                rectangle([1.0, 0.2, 0.2, 1.0], // red
+                          [snake_tail.x as f64 * self.rect_size, snake_tail.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
+                          c.transform, g);
+            });
+
+
+
+            let snake_head = self.game.get_interpolated_snake_head();
+
             rectangle([0.8, 0.0, 0.0, 1.0], // red
-                      [self.game.snake_front.x as f64 * self.rect_size, self.game.snake_front.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
+                      [snake_head.x as f64 * self.rect_size, snake_head.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
                       c.transform, g);
 
             rectangle([0.1, 0.8, 0.1, 1.0], // green
