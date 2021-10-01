@@ -56,14 +56,17 @@ impl MainGame {
                               c.transform, g);
                 }
             }
+
             let snake_slices = self.game.snake_body.as_slices();
 
             if snake_slices.0.len() > 0 {
+                // do not render very first element
                 for p in snake_slices.0[1..].iter() {
                     rectangle([1.0, 0.2, 0.2, 1.0], // red
                               [p.0.x as f64 * self.rect_size, p.0.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle
                               c.transform, g);
                 }
+                
                 for p in snake_slices.1.iter() {
                     rectangle([1.0, 0.2, 0.2, 1.0], // red
                               [p.0.x as f64 * self.rect_size, p.0.y as f64 * self.rect_size, self.rect_size, self.rect_size], // rectangle

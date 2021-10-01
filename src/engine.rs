@@ -185,6 +185,7 @@ pub struct Game {
     dir_x: i32,
     dir_y: i32,
     snake_progress: f32,
+    snake_step_time: f32,
     rng: rand::rngs::ThreadRng,
     dir_buffer: DirBuffer,
     pub game_field: Array2D<u32>,
@@ -204,6 +205,7 @@ impl Game {
             dir_x: 0,
             dir_y: 1,
             snake_progress: 0.0,
+            snake_step_time: 0.3,
             rng: rand::thread_rng(),
             dir_buffer: DirBuffer::new(),
             game_field: Array2D::filled_with(0, height as usize, width as usize),
@@ -254,7 +256,15 @@ impl Game {
         self.snake_body.front().map(|tail| {
             let dir_x = tail.1.x as f32;
             let dir_y = tail.1.y as f32;
-            let progress = self.snake_progress;
+            // self.snake_front represents the next position on grid
+            // when progress will hit 100%
+            // until then we need to interpolate between last position
+            // and snake_front
+            let progress = if self.snake_body.len() == self.current_length {
+                self.snake_progress
+            } else {
+                0.0
+            };
 
             Point2f::new(tail.0.x as f32 + dir_x * progress,
                          tail.0.y as f32 + dir_y * progress,
@@ -345,7 +355,7 @@ impl Game {
     pub fn make_step(&mut self, dt: f64) -> GameEvent {
         let mut event = GameEvent::None;
 
-        self.snake_progress += dt as f32 / 0.3;
+        self.snake_progress += dt as f32 / self.snake_step_time;
         if self.snake_progress < 1.0 {
             return GameEvent::None; // still in microstepping
         }
