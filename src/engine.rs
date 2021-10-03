@@ -103,6 +103,8 @@ pub enum GameEvent {
     None,
     Turn,
     Collision,
+    Teleport,
+    Eat,
 }
 
 /*
@@ -276,10 +278,11 @@ impl Game {
         self.dir_buffer.enqueue_dir(Point2i::new(dir_x, dir_y));
     }
 
-    fn teleport_if_needed(&self, front: Point2i) -> Point2i {
+    fn teleport_if_needed(&self, front: Point2i, event: &mut GameEvent) -> Point2i {
         for t in &self.teleporters {
             if front == t.start
             {
+                *event = GameEvent::Teleport;
                 return t.end;
             }
         }
@@ -291,7 +294,7 @@ impl Game {
         self.current_length
     }
 
-    fn do_snake_step(&mut self, dx: i32, dy: i32) -> bool {
+    fn do_snake_step(&mut self, dx: i32, dy: i32, event: &mut GameEvent) -> bool {
         self.snake_body.push_back((self.snake_front, Point2i::new(self.dir_x, self.dir_y)));
 
         let mut next_front = self.snake_front;
@@ -303,11 +306,12 @@ impl Game {
             return false;
         }
 
-        self.snake_front = self.teleport_if_needed(next_front);
+        self.snake_front = self.teleport_if_needed(next_front, event);
 
         if self.snake_front == self.food_location {
             self.current_length += 1;
-
+            *event = GameEvent::Eat;
+            
             loop {
                 self.food_location.x = self.rng.gen_range(0..self.width);
                 self.food_location.y = self.rng.gen_range(0..self.height);
@@ -379,7 +383,7 @@ impl Game {
         }
 
 
-        if self.do_snake_step(self.dir_x, self.dir_y) {
+        if self.do_snake_step(self.dir_x, self.dir_y, &mut event) {
             event
         } else {
             GameEvent::Collision

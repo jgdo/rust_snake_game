@@ -7,8 +7,11 @@ extern crate find_folder;
 use piston_window::*;
 use crate::ActiveScreen::{MainGame, InitScreen, LooseScreen};
 use piston_window::math::Scalar;
+#[cfg(target_os = "windows")]
 use winit::window::Icon;
+#[cfg(target_os = "windows")]
 use winit::platform::windows::IconExtWindows;
+
 
 use std::fs::File;
 use std::io::BufReader;
@@ -114,19 +117,38 @@ fn main() {
 
     let mut active = InitScreen;
 
-    let icon = Icon::from_path(assets.join("icon.ico"), None);
-    println!("icon: {:?}", icon);
-    window.window. ctx.window().set_window_icon(icon.ok());
-
+    #[cfg(target_os = "windows")]
+    {
+        let icon = Icon::from_path(assets.join("icon.ico"), None);
+        println!("icon: {:?}", icon);
+        window.window.ctx.window().set_window_icon(icon.ok());
+    }
 
     // Get a output stream handle to the default physical sound device
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open(assets.join("sound").join("turn.wav")).unwrap());
+    let turn_file = BufReader::new(File::open(assets.join("sound").join("turn.wav")).unwrap());
     // Decode that sound file into a source
-    let source = Decoder::new(file).unwrap();
+    let turn_source = Decoder::new(turn_file).unwrap();
+    let turn_sample = turn_source.convert_samples().buffered();
 
-    let sample = source.convert_samples().buffered();
+    // Load a sound from a file, using a path relative to Cargo.toml
+    let collision_file = BufReader::new(File::open(assets.join("sound").join("collision.mp3")).unwrap());
+    // Decode that sound file into a source
+    let collision_source = Decoder::new(collision_file).unwrap();
+    let collision_sample = collision_source.convert_samples().buffered();
+
+    // Load a sound from a file, using a path relative to Cargo.toml
+    let teleport_file = BufReader::new(File::open(assets.join("sound").join("teleport.mp3")).unwrap());
+    // Decode that sound file into a source
+    let teleport_source = Decoder::new(teleport_file).unwrap();
+    let teleport_sample = teleport_source.convert_samples().buffered();
+
+    // Load a sound from a file, using a path relative to Cargo.toml
+    let eat_file = BufReader::new(File::open(assets.join("sound").join("eat.mp3")).unwrap());
+    // Decode that sound file into a source
+    let eat_source = Decoder::new(eat_file).unwrap();
+    let eat_sample = eat_source.convert_samples().buffered();
 
     // Play the sound directly on the device
     // stream_handle.play_raw(sample.clone()).unwrap_or_default();
@@ -147,8 +169,13 @@ fn main() {
                 let game_result = game.run(&mut window, &mut glyphs, e);
                 match game_result {
                     GameEvent::None => {}
-                    GameEvent::Turn => {stream_handle.play_raw(sample.clone()).unwrap_or_default();}
-                    GameEvent::Collision => {active = LooseScreen(game.current_score());}
+                    GameEvent::Turn => {stream_handle.play_raw(turn_sample.clone()).unwrap_or_default();}
+                    GameEvent::Teleport => {stream_handle.play_raw(teleport_sample.clone()).unwrap_or_default();}
+                    GameEvent::Eat => {stream_handle.play_raw(eat_sample.clone()).unwrap_or_default();}
+                    GameEvent::Collision => {
+                        stream_handle.play_raw(collision_sample.clone()).unwrap_or_default();
+                        active = LooseScreen(game.current_score());
+                    }
                 }
 
 
